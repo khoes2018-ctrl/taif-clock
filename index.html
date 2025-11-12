@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>ساعة الطائف — نسخة الجوال الإبداعية</title>
+  <meta name="theme-color" content="#0b0f17">
+  <style>
+    :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Tahoma, Arial; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      color: #f1f4f8;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(160deg, #0a0a0a 0%, #121212 40%, #0b0f17 100%), #0b0f17;
+      position: relative;
+      overflow-x: hidden;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .glow {
+      position: fixed; inset: -30%;
+      pointer-events: none;
+      background:
+        radial-gradient(45% 30% at 15% 12%, rgba(255,225,150,.18), transparent 60%),
+        radial-gradient(40% 26% at 82% 90%, rgba(255,205,110,.12), transparent 60%),
+        radial-gradient(30% 18% at 60% 30%, rgba(255,215,120,.08), transparent 70%);
+      filter: blur(14px);
+    }
+    .wrap { width: min(820px, 96vw); padding: clamp(16px, 3.2vw, 26px); }
+    .card {
+      position: relative; border-radius: 22px; background: rgba(18, 24, 39, 0.92);
+      border: 1px solid rgba(255, 215, 120, 0.18);
+      box-shadow: 0 30px 80px rgba(0,0,0,.50), inset 0 0 0 1px rgba(255,255,255,.04);
+      backdrop-filter: blur(6px); padding: clamp(14px, 3vw, 22px);
+      margin: env(safe-area-inset-top) auto env(safe-area-inset-bottom);
+    }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .title { display: flex; align-items: center; gap: 10px; flex: 1 1 auto; }
+    .logo { width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255,215,120,.5);
+            display: grid; place-items: center; color: #ffd98e; font-weight: 900; }
+    h1 { font-size: clamp(18px, 3.6vw, 28px); margin: 0; line-height: 1.3; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    button, .toggle {
+      cursor: pointer; border: 1px solid rgba(255,215,120,.35);
+      background: linear-gradient(180deg, rgba(40,32,16,.8), rgba(26,22,18,.8));
+      color: #f3e7c5; padding: 10px 14px; border-radius: 12px; font-weight: 800;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.15); font-size: 14px;
+      min-height: 44px;
+    }
+    button:active { transform: translateY(1px); }
+    button:hover, .toggle:hover { background: linear-gradient(180deg, rgba(50,40,20,.9), rgba(30,26,20,.9)); }
+    .big {
+      text-align:center; font-variant-numeric: tabular-nums; font-weight: 900; letter-spacing: .6px;
+      font-size: clamp(42px, 15vw, 96px); margin: 12px 0 8px;
+    }
+    .dates { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 6px 0 10px; }
+    .date-line { display: flex; align-items: center; gap: 8px; font-size: clamp(14px, 3.2vw, 18px); opacity: .96; }
+    .tag { padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); font-size: 12px; opacity: .9; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; font-size: 13px; opacity: .9; }
+    .pill { display:inline-block; padding: 4px 8px; border-radius: 999px; background: rgba(255,215,120,.12); border: 1px solid rgba(255,215,120,.2); }
+    .section { margin-top: 12px; padding: 12px; border-radius: 16px; background: rgba(255, 220, 140, .08); border: 1px solid rgba(255, 215, 120, .22); }
+    .section h2 { margin: 0 0 6px; font-size: clamp(15px, 3vw, 18px); color: #ffe3a1; }
+    .status { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+    .status .badge { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); font-size: 13px; }
+    .ok { color: #7de39a; } .warn { color: #ffd26f; } .err { color: #ff7d7d; }
+    .banner {
+      position: fixed; top: 8px; inset-inline: 8px; z-index: 1000;
+      background: rgba(255, 215, 120, .1); border: 1px solid rgba(255, 215, 120, .3);
+      color: #ffe3a1; padding: 8px 12px; border-radius: 12px; font-size: 13px; display:none;
+      backdrop-filter: blur(6px);
+    }
+    .foot { margin-top: 14px; font-size: 12px; opacity:.7; text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="glow"></div>
+  <div class="banner" id="banner">لأفضل دقة: اضغط القائمة ⋮ ← "فتح في المتصفح" (Chrome/Safari). بعض متصفحات التطبيقات تحدّ من المزامنة.</div>
+
+  <div class="wrap">
+    <div class="card" role="group" aria-label="ساعة دقيقة لتوقيت السعودية">
+      <div class="row">
+        <div class="title">
+          <div class="logo">⌚</div>
+          <h1>الوقت الدقيق — الطائف / Asia–Riyadh</h1>
+        </div>
+        <div class="controls">
+          <button id="resync" title="إعادة مزامنة الوقت من مصدر معياري">مزامنة</button>
+          <button id="chimeBtn" class="toggle" title="تشغيل/إيقاف جرس رأس الساعة">جرس: إيقاف</button>
+          <button id="wakeBtn" class="toggle" title="منع إطفاء الشاشة (إن كان مدعومًا)">منع الإطفاء: إيقاف</button>
+        </div>
+      </div>
+
+      <div id="clock" class="big">--:--:--</div>
+
+      <div class="dates">
+        <div class="date-line"><span class="tag">ميلادي</span><span id="date-g"></span></div>
+        <div class="date-line"><span class="tag">هجري</span><span id="date-h"></span></div>
+      </div>
+
+      <div class="section">
+        <h2>العدّ التنازلي للأذان التالي في الطائف</h2>
+        <div class="grid2">
+          <div>الصلاة القادمة: <span class="pill" id="nextName">—</span></div>
+          <div>الوقت: <span id="nextTime">—</span></div>
+          <div>العدّ التنازلي: <strong id="countdown">—:—:—</strong></div>
+          <div>UTC Offset: <span id="offset">+03:00</span></div>
+        </div>
+      </div>
+
+      <div class="status">
+        <div class="badge" id="statusBadge">الحالة: جارٍ المزامنة…</div>
+        <div class="badge">انحراف جهازك: <span id="drift">—</span></div>
+        <div class="badge">آخر مزامنة: <span id="lastSync">—</span></div>
+        <div class="badge">ثقة القراءة: <span id="confidence">—</span></div>
+      </div>
+
+      <div class="foot">تصميم جوّال إبداعي يعمل محليًا حتى دون اتصال بعد المزامنة. لإضافة للواجهة الرئيسية: مشاركة → إضافة إلى الشاشة الرئيسية.</div>
+    </div>
+  </div>
+
+  <script>
+    (function(){ const ua = navigator.userAgent||""; const inApp=/WhatsApp|FBAN|FBAV|Line\\/|Instagram|Twitter/i.test(ua); if(inApp) document.getElementById("banner").style.display="block"; })();
+    let baseEpochMs=null, basePerfMs=null, tzOffsetStr="+03:00", lastDrift=0, confidence="—";
+    let chimeEnabled=false, lastChimedHour=null;
+    let wakeLock=null, wakeEnabled=false;
+
+    const $=id=>document.getElementById(id);
+    const clockEl=$("clock"), dateGEl=$("date-g"), dateHEl=$("date-h");
+    const statusEl=$("statusBadge"), offsetEl=$("offset"), driftEl=$("drift"), lastSyncEl=$("lastSync"), confEl=$("confidence");
+    const resyncBtn=$("resync"), chimeBtn=$("chimeBtn"), wakeBtn=$("wakeBtn");
+
+    const fmtG=new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{weekday:"long",year:"numeric",month:"long",day:"numeric",hour12:false,timeZone:"Asia/Riyadh"});
+    const fmtH=new Intl.DateTimeFormat("ar-SA-u-ca-islamic",{weekday:"long",year:"numeric",month:"long",day:"numeric",hour12:false,timeZone:"Asia/Riyadh"});
+
+    function setStatus(text,cls){ statusEl.textContent="الحالة: "+text; statusEl.classList.remove("ok","warn","err"); if(cls) statusEl.classList.add(cls); }
+    const fmt2=n=>String(n).padStart(2,"0");
+    const formatClock=d=>`${fmt2(d.getHours())}:${fmt2(d.getMinutes())}:${fmt2(d.getSeconds())}`;
+
+    function formatDates(d){
+      const partsG=fmtG.formatToParts(d); let monthNameG=partsG.find(p=>p.type==="month")?.value||""; let monthNumberG=d.getMonth()+1;
+      let gText=fmtG.format(d).replace(monthNameG,`${monthNameG} (${monthNumberG})`);
+      const partsH=fmtH.formatToParts(d); let monthNameH=partsH.find(p=>p.type==="month")?.value||"";
+      let monthNumberH=parseInt(d.toLocaleString("en-u-ca-islamic",{month:"numeric",timeZone:"Asia/Riyadh"}));
+      let hText=fmtH.format(d).replace(monthNameH,`${monthNameH} (${monthNumberH})`);
+      dateGEl.textContent=gText; dateHEl.textContent=hText;
+    }
+
+    function maybeChime(d){ if(!chimeEnabled) return; const h=d.getHours(), s=d.getSeconds(); if(s===0 && h!==lastChimedHour){ lastChimedHour=h; try{ playChime(h); }catch{} } }
+    function playChime(h){ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const notes=[440,554.37,659.25]; let t=ctx.currentTime;
+      for(let i=0;i<notes.length;i++){ const osc=ctx.createOscillator(), gain=ctx.createGain(); osc.type="sine"; osc.frequency.value=notes[i]; osc.connect(gain); gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.001,t); gain.gain.exponentialRampToValueAtTime(0.2,t+0.02); gain.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
+        osc.start(t); osc.stop(t+0.4); t+=0.18; } }
+
+    function tick(){ if(baseEpochMs==null||basePerfMs==null) return; const now=baseEpochMs+(performance.now()-basePerfMs);
+      const d=new Date(now); clockEl.textContent=formatClock(d); formatDates(d); maybeChime(d); updateCountdown(d); requestAnimationFrame(tick); }
+
+    async function fetchWithTimeout(url,options={},timeoutMs=6000){
+      const ctrl=new AbortController(); const id=setTimeout(()=>ctrl.abort(),timeoutMs);
+      try{ const res=await fetch(url,{...options,signal:ctrl.signal,cache:"no-store"}); clearTimeout(id); return res; }
+      catch(e){ clearTimeout(id); throw e; }
+    }
+
+    async function getServerTime(){
+      const t0=performance.now();
+      try{ const res=await fetchWithTimeout("https://worldtimeapi.org/api/timezone/Asia/Riyadh",{},6000);
+        if(!res.ok) throw new Error("HTTP "+res.status); const t1=performance.now(); const data=await res.json();
+        const serverUnixMs=(data.unixtime*1000)+(t1-t0)/2; tzOffsetStr=data.utc_offset||"+03:00"; confidence="عالٍ (مصدر معياري)"; return {serverUnixMs, ok:true}; }
+      catch(e){ const clientNow=Date.now(); confidence="متوسط (ساعة جهازك)"; return {serverUnixMs:clientNow, ok:false}; }
+    }
+
+    async function syncNow(){
+      setStatus("جارٍ المزامنة…",""); const before=Date.now(); const {serverUnixMs, ok}=await getServerTime();
+      baseEpochMs=serverUnixMs; basePerfMs=performance.now(); const after=Date.now();
+      const deviceMid=before+(after-before)/2; lastDrift=serverUnixMs-deviceMid;
+      $("offset").textContent=tzOffsetStr; $("drift").textContent=(lastDrift>0?"+":"")+Math.round(lastDrift)+" مللي ثانية";
+      $("lastSync").textContent=new Date().toLocaleString("ar-SA",{hour12:false}); $("confidence").textContent=confidence;
+      setStatus(ok?"متصل بمصدر معياري ✓":"الاعتماد على ساعة جهازك", ok?"ok":"warn");
+      if(clockEl.textContent==="--:--:--") requestAnimationFrame(tick);
+      fetchAdhanTimes();
+    }
+
+    chimeBtn.addEventListener("click",()=>{ chimeEnabled=!chimeEnabled; chimeBtn.textContent="جرس: "+(chimeEnabled?"تشغيل":"إيقاف"); });
+
+    async function requestWake(){
+      try{ if('wakeLock' in navigator){ wakeLock=await navigator.wakeLock.request('screen');
+          wakeLock.addEventListener('release',()=>{ wakeEnabled=false; wakeBtn.textContent="منع الإطفاء: إيقاف"; });
+          wakeEnabled=true; wakeBtn.textContent="منع الإطفاء: تشغيل";
+        } else { alert("ميزة منع الإطفاء غير مدعومة على هذا المتصفح."); } }
+      catch(e){ alert("تعذر تفعيل منع الإطفاء. جرّب Chrome أو Safari."); } }
+    function releaseWake(){ if(wakeLock){ wakeLock.release(); wakeLock=null; } wakeEnabled=false; wakeBtn.textContent="منع الإطفاء: إيقاف"; }
+    wakeBtn.addEventListener("click",()=>{ wakeEnabled ? releaseWake() : requestWake(); });
+    document.addEventListener('visibilitychange',()=>{ if(wakeEnabled && document.visibilityState==='visible') requestWake(); });
+
+    // Adhan countdown
+    const prayersOrder=["Fajr","Dhuhr","Asr","Maghrib","Isha"]; let todayPrayers=null;
+    async function fetchAdhanTimes(){ try{
+        const url="https://api.aladhan.com/v1/timingsByCity?city=Taif&country=SA&method=4";
+        const res=await fetchWithTimeout(url,{},7000); const js=await res.json(); const t=js?.data?.timings||{};
+        todayPrayers={Fajr:t.Fajr, Dhuhr:t.Dhuhr, Asr:t.Asr, Maghrib:t.Maghrib, Isha:t.Isha};
+      } catch(e){ todayPrayers=null; } }
+    const nextNameEl=$("nextName"), nextTimeEl=$("nextTime"), countdownEl=$("countdown");
+    const parseHM=s=>{ if(!s) return null; const [hh,mm]=s.split(":").map(x=>parseInt(x,10)); return {hh,mm}; };
+    function nextAdhanFrom(d){ if(!todayPrayers) return null; for(const name of prayersOrder){ const hm=parseHM(todayPrayers[name]); if(!hm) continue; const dt=new Date(d); dt.setHours(hm.hh, hm.mm, 0, 0); if(dt>d) return {name, at:dt}; } return null; }
+    async function updateCountdown(nowDate){ if(!todayPrayers){ nextNameEl.textContent="—"; nextTimeEl.textContent="—"; countdownEl.textContent="—:—:—"; return; }
+      let nxt=nextAdhanFrom(nowDate); if(!nxt){ await fetchAdhanTimes(); nxt=nextAdhanFrom(nowDate); if(!nxt) return; }
+      nextNameEl.textContent=localizePrayerName(nxt.name); nextTimeEl.textContent=`${fmt2(nxt.at.getHours())}:${fmt2(nxt.at.getMinutes())}`;
+      const diffMs=nxt.at-nowDate; const totalSec=Math.max(0, Math.floor(diffMs/1000)); const hh=Math.floor(totalSec/3600); const mm=Math.floor((totalSec%3600)/60); const ss=totalSec%60;
+      countdownEl.textContent=`${fmt2(hh)}:${fmt2(mm)}:${fmt2(ss)}`; }
+    function localizePrayerName(n){ switch(n){ case "Fajr": return "الفجر"; case "Dhuhr": return "الظهر"; case "Asr": return "العصر"; case "Maghrib": return "المغرب"; case "Isha": return "العشاء"; default: return n; } }
+
+    // Start
+    syncNow(); setInterval(syncNow, 10*60*1000);
+  </script>
+</body>
+</html>
