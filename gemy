@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>الوقت الدقيق — الطائف/الرياض (UTC+3)</title>
+  <link rel="manifest" href="manifest-taif-clock.json">
+  <meta name="theme-color" content="#0b0f17">
+  <style>
+    :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Tahoma, Arial; }
+    /* Gold-Black luxury gradient */
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      color: #e7eaee;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(135deg, #0a0a0a 0%, #111111 30%, #1a1a1a 60%, #000 100%), #0b0f17;
+      position: relative;
+      overflow-x: hidden;
+    }
+    /* subtle gold sheen overlay */
+    body::before {
+      content: "";
+      position: absolute; inset: -20%;
+      background: radial-gradient(60% 30% at 20% 10%, rgba(255,220,140,.18), transparent 60%),
+                  radial-gradient(50% 25% at 80% 90%, rgba(255,200,90,.10), transparent 60%);
+      pointer-events: none;
+      filter: blur(12px);
+    }
+    .card {
+      position: relative;
+      width: min(880px, 94vw);
+      padding: 28px;
+      border-radius: 22px;
+      background: rgba(18, 24, 39, 0.88);
+      border: 1px solid rgba(255, 215, 120, 0.18);
+      box-shadow: 0 30px 80px rgba(0,0,0,.50), inset 0 0 0 1px rgba(255,255,255,.04);
+      backdrop-filter: blur(6px);
+    }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    h1 { font-size: clamp(24px, 3.4vw, 32px); margin: 0 0 6px; line-height: 1.25; }
+    .time { font-variant-numeric: tabular-nums; font-weight: 800; letter-spacing: .5px; font-size: clamp(44px, 10vw, 86px); margin: 16px 0 8px; }
+    .dates { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 10px 0 16px; }
+    .date-line { display: flex; align-items: center; gap: 8px; font-size: clamp(15px, 2.2vw, 18px); opacity: .95; }
+    .tag { padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); font-size: 12px; opacity: .9; }
+    .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; font-size: 14px; opacity: .85; }
+    .badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); }
+    button, .toggle {
+      cursor: pointer; border: 1px solid rgba(255,215,120,.35);
+      background: linear-gradient(180deg, rgba(40,32,16,.8), rgba(26,22,18,.8));
+      color: #f3e7c5; padding: 10px 14px; border-radius: 12px; font-weight: 700;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.15);
+    }
+    button:hover, .toggle:hover { background: linear-gradient(180deg, rgba(50,40,20,.9), rgba(30,26,20,.9)); }
+    .ok { color: #7de39a; }
+    .warn { color: #ffd26f; }
+    .err { color: #ff7d7d; }
+    a { color: #ffd98e; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .footer { margin-top: 20px; opacity: .7; font-size: 13px; text-align: center; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .adhan {
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255, 220, 140, .08);
+      border: 1px solid rgba(255, 215, 120, .22);
+    }
+    .adhan h2 { margin: 0 0 8px; font-size: clamp(16px, 2.4vw, 20px); color: #ffe3a1; }
+    .adhan p { margin: 6px 0; }
+    .pill { display:inline-block; padding: 4px 8px; border-radius: 999px; background: rgba(255,215,120,.12); border: 1px solid rgba(255,215,120,.2); }
+    .install { margin-inline-start: auto; }
+  </style>
+</head>
+<body>
+  <div class="card" role="group" aria-label="ساعة دقيقة لتوقيت السعودية">
+    <div class="row">
+      <h1>الوقت الدقيق الآن — الطائف/السعودية (Asia/Riyadh)</h1>
+      <div class="controls">
+        <button id="resync" title="إعادة مزامنة الوقت من مصدر معياري">إعادة المزامنة</button>
+        <button id="chimeBtn" class="toggle" title="تشغيل/إيقاف جرس رأس الساعة">جرس رأس الساعة: إيقاف</button>
+        <button id="installBtn" class="toggle install" hidden>تثبيت كتطبيق</button>
+      </div>
+    </div>
+
+    <div class="time" id="clock">--:--:--</div>
+
+    <div class="dates">
+      <div class="date-line"><span class="tag">ميلادي</span><span id="date-g"></span></div>
+      <div class="date-line"><span class="tag">هجري</span><span id="date-h"></span></div>
+    </div>
+
+    <div class="adhan" id="adhanBox">
+      <h2>العدّ التنازلي للأذان التالي في الطائف</h2>
+      <p>الصلاة القادمة: <span class="pill" id="nextName">—</span></p>
+      <p>الوقت: <span id="nextTime">—</span></p>
+      <p>العدّ التنازلي: <strong id="countdown">—:—:—</strong></p>
+      <p style="opacity:.7;font-size:13px;">(المواقيت من <a href="https://aladhan.com/prayer-times" target="_blank" rel="noopener">Aladhan</a>‎ — طريقة: أم القرى)</p>
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <div class="badge" id="statusBadge">الحالة: جارٍ المزامنة…</div>
+      <div class="badge">المصدر: <a href="https://worldtimeapi.org/api/timezone/Asia/Riyadh" target="_blank" rel="noopener">WorldTimeAPI</a></div>
+    </div>
+
+    <div class="meta" style="margin-top:16px;">
+      <div>UTC Offset: <span id="offset">+03:00</span></div>
+      <div>انحراف جهازك: <span id="drift">—</span></div>
+      <div>آخر مزامنة: <span id="lastSync">—</span></div>
+      <div>ثقة المصدر: <span id="confidence">—</span></div>
+    </div>
+
+    <div class="footer">
+      مُصمم لعرض توقيت <strong>Asia/Riyadh</strong> بدقة مع تصحيح انحراف ساعة الجهاز. يعمل محليًا حتى دون اتصال بعد المزامنة الأولى. يدعم التثبيت كتطبيق (PWA).
+    </div>
+  </div>
+
+  <script>
+    // High-precision ticking using performance.now()
+    let baseEpochMs = null;       // server-true epoch in ms
+    let basePerfMs = null;        // performance.now() at sync time
+    let tzOffsetStr = "+03:00";   // default for Asia/Riyadh
+    let lastDrift = 0;
+    let confidence = "—";
+
+    // Hourly chime state
+    let chimeEnabled = false;
+    let lastChimedHour = null;
+
+    // PWA install prompt
+    let deferredPrompt = null;
+    const installBtn = document.getElementById("installBtn");
+
+    const $ = (id) => document.getElementById(id);
+    const clockEl = $("clock");
+    const dateGEl = $("date-g");
+    const dateHEl = $("date-h");
+    const statusEl = $("statusBadge");
+    const offsetEl = $("offset");
+    const driftEl = $("drift");
+    const lastSyncEl = $("lastSync");
+    const confEl = $("confidence");
+    const resyncBtn = $("resync");
+    const chimeBtn = $("chimeBtn");
+
+    // Adhan elements
+    const nextNameEl = $("nextName");
+    const nextTimeEl = $("nextTime");
+    const countdownEl = $("countdown");
+
+    function setStatus(text, cls) {
+      statusEl.textContent = "الحالة: " + text;
+      statusEl.classList.remove("ok", "warn", "err");
+      if (cls) statusEl.classList.add(cls);
+    }
+
+    function fmt2(n) { return String(n).padStart(2,"0"); }
+    function formatClock(d) {
+      return fmt2(d.getHours()) + ":" + fmt2(d.getMinutes()) + ":" + fmt2(d.getSeconds());
+    }
+
+    const fmtG = new Intl.DateTimeFormat("ar-SA-u-ca-gregory", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+      hour12: false, timeZone: "Asia/Riyadh"
+    });
+    const fmtH = new Intl.DateTimeFormat("ar-SA-u-ca-islamic", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+      hour12: false, timeZone: "Asia/Riyadh"
+    });
+
+    function formatDates(d) {
+      // Gregorian with month number
+      const partsG = fmtG.formatToParts(d);
+      let monthNameG = partsG.find(p => p.type === "month")?.value || "";
+      let monthNumberG = d.getMonth() + 1;
+      let gText = fmtG.format(d).replace(monthNameG, monthNameG + " (" + monthNumberG + ")");
+
+      // Hijri with month number
+      const partsH = fmtH.formatToParts(d);
+      let monthNameH = partsH.find(p => p.type === "month")?.value || "";
+      let monthNumberH = parseInt(d.toLocaleString("en-u-ca-islamic", { month: "numeric", timeZone: "Asia/Riyadh" }));
+      let hText = fmtH.format(d).replace(monthNameH, monthNameH + " (" + monthNumberH + ")");
+
+      dateGEl.textContent = gText;
+      dateHEl.textContent = hText;
+    }
+
+    function maybeChime(d) {
+      if (!chimeEnabled) return;
+      const h = d.getHours();
+      const s = d.getSeconds();
+      if (s === 0 && h !== lastChimedHour) {
+        lastChimedHour = h;
+        try { playChime(h); } catch {}
+      }
+    }
+
+    // Simple pleasant chime using Web Audio API
+    function playChime(h) {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [440, 554.37, 659.25]; // A4, C#5, E5
+      let t = ctx.currentTime;
+      for (let i=0;i<notes.length;i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = notes[i];
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.exponentialRampToValueAtTime(0.2, t+0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t+0.35);
+        osc.start(t);
+        osc.stop(t+0.4);
+        t += 0.18;
+      }
+      const count = Math.max(1, (h % 12) || 12);
+      let baseT = t + 0.15;
+      for (let i=0;i<Math.min(count, 3); i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = 880;
+        osc.connect(gain); gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.0001, baseT);
+        gain.gain.exponentialRampToValueAtTime(0.15, baseT+0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, baseT+0.2);
+        osc.start(baseT); osc.stop(baseT+0.22);
+        baseT += 0.25;
+      }
+    }
+
+    function tick() {
+      if (baseEpochMs == null || basePerfMs == null) return;
+      const now = baseEpochMs + (performance.now() - basePerfMs);
+      const d = new Date(now);
+      clockEl.textContent = formatClock(d);
+      formatDates(d);
+      maybeChime(d);
+      updateCountdown(d);
+      requestAnimationFrame(tick);
+    }
+
+    async function getServerTime() {
+      const t0 = performance.now();
+      try {
+        const res = await fetch("https://worldtimeapi.org/api/timezone/Asia/Riyadh", { cache: "no-store" });
+        const t1 = performance.now();
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        const serverUnixMs = (data.unixtime * 1000) + (t1 - t0)/2; // midpoint RTT compensation
+        tzOffsetStr = data.utc_offset || "+03:00";
+        confidence = "عالٍ";
+        return { serverUnixMs, source: "WorldTimeAPI", ok: true };
+      } catch (e) {
+        const clientNow = Date.now();
+        confidence = "منخفض (اعتماد على جهازك)";
+        return { serverUnixMs: clientNow, source: "LocalDevice", ok: false, error: e && e.message };
+      }
+    }
+
+    async function syncNow() {
+      setStatus("جارٍ المزامنة من المصدر…", "");
+      const before = Date.now();
+      const { serverUnixMs, source, ok, error } = await getServerTime();
+      baseEpochMs = serverUnixMs;
+      basePerfMs = performance.now();
+      const after = Date.now();
+
+      // Compute drift between device local and server
+      const deviceMid = before + (after - before)/2;
+      lastDrift = serverUnixMs - deviceMid;
+
+      // Update UI
+      $("offset").textContent = tzOffsetStr;
+      $("drift").textContent = (lastDrift>0?"+":"") + Math.round(lastDrift) + " مللي ثانية";
+      $("lastSync").textContent = new Date().toLocaleString("ar-SA", { hour12:false });
+      $("confidence").textContent = confidence;
+
+      if (ok) setStatus("متصل بمصدر معياري ✓", "ok");
+      else setStatus("استخدمت ساعة جهازك (تعذر الوصول للمصدر)", "warn");
+
+      if (clockEl.textContent === "--:--:--") requestAnimationFrame(tick);
+
+      // Refresh adhan times for today
+      fetchAdhanTimes();
+    }
+
+    resyncBtn.addEventListener("click", syncNow);
+
+    chimeBtn.addEventListener("click", () => {
+      chimeEnabled = !chimeEnabled;
+      chimeBtn.textContent = "جرس رأس الساعة: " + (chimeEnabled ? "تشغيل" : "إيقاف");
+      if (chimeEnabled) {
+        setStatus("الجرس مُفعَّل ✓", "ok");
+      } else {
+        setStatus("الجرس متوقف", "");
+      }
+    });
+
+    // ===== Adhan countdown (Taif) =====
+    const prayersOrder = ["Fajr","Dhuhr","Asr","Maghrib","Isha"];
+    let todayPrayers = null; // map name-> "HH:MM"
+
+    async function fetchAdhanTimes() {
+      try {
+        // Using city API with method=4 (Umm al-Qura, Makkah)
+        const url = "https://api.aladhan.com/v1/timingsByCity?city=Taif&country=SA&method=4";
+        const res = await fetch(url, { cache: "no-store" });
+        const js = await res.json();
+        const t = js?.data?.timings || {};
+        todayPrayers = {
+          Fajr: t.Fajr, Dhuhr: t.Dhuhr, Asr: t.Asr, Maghrib: t.Maghrib, Isha: t.Isha
+        };
+      } catch (e) {
+        todayPrayers = null;
+      }
+    }
+
+    function parseHM(s) {
+      if (!s) return null;
+      const [hh, mm] = s.split(":").map(x => parseInt(x,10));
+      return {hh, mm};
+    }
+
+    function nextAdhanFrom(d) {
+      if (!todayPrayers) return null;
+      for (const name of prayersOrder) {
+        const hm = parseHM(todayPrayers[name]);
+        if (!hm) continue;
+        const dt = new Date(d);
+        dt.setHours(hm.hh, hm.mm, 0, 0);
+        if (dt > d) return { name, at: dt };
+      }
+      // If all passed, fetch tomorrow by adding 1 day and reusing API (simple re-fetch)
+      return null;
+    }
+
+    async function updateCountdown(nowDate) {
+      if (!todayPrayers) return;
+      let nxt = nextAdhanFrom(nowDate);
+      if (!nxt) {
+        // passed all prayers today -> refetch (tomorrow)
+        await fetchAdhanTimes();
+        nxt = nextAdhanFrom(nowDate);
+        if (!nxt) {
+          nextNameEl.textContent = "—";
+          nextTimeEl.textContent = "—";
+          countdownEl.textContent = "—:—:—";
+          return;
+        }
+      }
+      nextNameEl.textContent = localizePrayerName(nxt.name);
+      nextTimeEl.textContent = fmt2(nxt.at.getHours()) + ":" + fmt2(nxt.at.getMinutes());
+      const diffMs = nxt.at - nowDate;
+      const totalSec = Math.max(0, Math.floor(diffMs / 1000));
+      const hh = Math.floor(totalSec / 3600);
+      const mm = Math.floor((totalSec % 3600) / 60);
+      const ss = totalSec % 60;
+      countdownEl.textContent = `${fmt2(hh)}:${fmt2(mm)}:${fmt2(ss)}`;
+    }
+
+    function localizePrayerName(n) {
+      switch(n) {
+        case "Fajr": return "الفجر";
+        case "Dhuhr": return "الظهر";
+        case "Asr": return "العصر";
+        case "Maghrib": return "المغرب";
+        case "Isha": return "العشاء";
+        default: return n;
+      }
+    }
+
+    // ===== PWA setup =====
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw-taif-clock.js");
+      });
+    }
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.hidden = false;
+    });
+    installBtn.addEventListener("click", async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === "accepted") {
+        installBtn.textContent = "تم التثبيت ✓";
+        installBtn.disabled = true;
+      }
+      deferredPrompt = null;
+    });
+
+    // Auto sync on load, then resync every 10 minutes to correct drift
+    syncNow();
+    setInterval(syncNow, 10 * 60 * 1000);
+  </script>
+</body>
+</html>
