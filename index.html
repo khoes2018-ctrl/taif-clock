@@ -110,10 +110,10 @@
       </div>
 
       <div class="status">
-        <div class="badge" id="statusBadge">الحالة: جارٍ المزامنة…</div>
-        <div class="badge">انحراف جهازك: <span id="drift">—</span></div>
+        <div class="badge" id="statusBadge">الحالة: الاعتماد على ساعة جهازك</div>
+        <div class="badge">انحراف جهازك: <span id="drift">0 مللي ثانية</span></div>
         <div class="badge">آخر مزامنة: <span id="lastSync">—</span></div>
-        <div class="badge">ثقة القراءة: <span id="confidence">—</span></div>
+        <div class="badge">ثقة القراءة: <span id="confidence">متوسط (ساعة جهازك)</span></div>
       </div>
 
       <div class="foot">تصميم جوّال إبداعي يعمل محليًا حتى دون اتصال بعد المزامنة. لإضافة للواجهة الرئيسية: مشاركة → إضافة إلى الشاشة الرئيسية.</div>
@@ -121,20 +121,33 @@
   </div>
 
   <script>
-    (function(){ const ua = navigator.userAgent||""; const inApp=/WhatsApp|FBAN|FBAV|Line\\/|Instagram|Twitter/i.test(ua); if(inApp) document.getElementById("banner").style.display="block"; })();
-    let baseEpochMs=null, basePerfMs=null, tzOffsetStr="+03:00", lastDrift=0, confidence="—";
-    let chimeEnabled=false, lastChimedHour=null;
-    let wakeLock=null, wakeEnabled=false;
+    // تنبيه فتح داخل تطبيقات
+    (function(){
+      const ua = navigator.userAgent||"";
+      const inApp = /WhatsApp|FBAN|FBAV|Line\/|Instagram|Twitter/i.test(ua);
+      if(inApp) document.getElementById("banner").style.display="block";
+    })();
 
+    // عناصر DOM
     const $=id=>document.getElementById(id);
     const clockEl=$("clock"), dateGEl=$("date-g"), dateHEl=$("date-h");
     const statusEl=$("statusBadge"), offsetEl=$("offset"), driftEl=$("drift"), lastSyncEl=$("lastSync"), confEl=$("confidence");
     const resyncBtn=$("resync"), chimeBtn=$("chimeBtn"), wakeBtn=$("wakeBtn");
+    const nextNameEl=$("nextName"), nextTimeEl=$("nextTime"), countdownEl=$("countdown");
 
+    // تهيئة فورية لبدء الساعة مباشرة
+    let baseEpochMs = Date.now();
+    let basePerfMs  = performance.now();
+    let tzOffsetStr = "+03:00";
+    let lastDrift   = 0;
+    let confidence  = "متوسط (ساعة جهازك)";
+
+    // تنسيقات التاريخ
     const fmtG=new Intl.DateTimeFormat("ar-SA-u-ca-gregory",{weekday:"long",year:"numeric",month:"long",day:"numeric",hour12:false,timeZone:"Asia/Riyadh"});
     const fmtH=new Intl.DateTimeFormat("ar-SA-u-ca-islamic",{weekday:"long",year:"numeric",month:"long",day:"numeric",hour12:false,timeZone:"Asia/Riyadh"});
 
-    function setStatus(text,cls){ statusEl.textContent="الحالة: "+text; statusEl.classList.remove("ok","warn","err"); if(cls) statusEl.classList.add(cls); }
+    // دوال مساعدة
+    function setStatus(text,cls){ statusEl.textContent="الحالة: "+text; statusEl.className="badge "+(cls||""); }
     const fmt2=n=>String(n).padStart(2,"0");
     const formatClock=d=>`${fmt2(d.getHours())}:${fmt2(d.getMinutes())}:${fmt2(d.getSeconds())}`;
 
@@ -147,71 +160,149 @@
       dateGEl.textContent=gText; dateHEl.textContent=hText;
     }
 
-    function maybeChime(d){ if(!chimeEnabled) return; const h=d.getHours(), s=d.getSeconds(); if(s===0 && h!==lastChimedHour){ lastChimedHour=h; try{ playChime(h); }catch{} } }
-    function playChime(h){ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const notes=[440,554.37,659.25]; let t=ctx.currentTime;
-      for(let i=0;i<notes.length;i++){ const osc=ctx.createOscillator(), gain=ctx.createGain(); osc.type="sine"; osc.frequency.value=notes[i]; osc.connect(gain); gain.connect(ctx.destination);
-        gain.gain.setValueAtTime(0.001,t); gain.gain.exponentialRampToValueAtTime(0.2,t+0.02); gain.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
-        osc.start(t); osc.stop(t+0.4); t+=0.18; } }
-
-    function tick(){ if(baseEpochMs==null||basePerfMs==null) return; const now=baseEpochMs+(performance.now()-basePerfMs);
-      const d=new Date(now); clockEl.textContent=formatClock(d); formatDates(d); maybeChime(d); updateCountdown(d); requestAnimationFrame(tick); }
-
-    async function fetchWithTimeout(url,options={},timeoutMs=6000){
-      const ctrl=new AbortController(); const id=setTimeout(()=>ctrl.abort(),timeoutMs);
-      try{ const res=await fetch(url,{...options,signal:ctrl.signal,cache:"no-store"}); clearTimeout(id); return res; }
-      catch(e){ clearTimeout(id); throw e; }
+    // الجرس
+    let chimeEnabled=false, lastChimedHour=null;
+    function maybeChime(d){
+      if(!chimeEnabled) return;
+      const h=d.getHours(), s=d.getSeconds();
+      if(s===0 && h!==lastChimedHour){
+        lastChimedHour=h;
+        try { playChime(); } catch {}
+      }
     }
-
-    async function getServerTime(){
-      const t0=performance.now();
-      try{ const res=await fetchWithTimeout("https://worldtimeapi.org/api/timezone/Asia/Riyadh",{},6000);
-        if(!res.ok) throw new Error("HTTP "+res.status); const t1=performance.now(); const data=await res.json();
-        const serverUnixMs=(data.unixtime*1000)+(t1-t0)/2; tzOffsetStr=data.utc_offset||"+03:00"; confidence="عالٍ (مصدر معياري)"; return {serverUnixMs, ok:true}; }
-      catch(e){ const clientNow=Date.now(); confidence="متوسط (ساعة جهازك)"; return {serverUnixMs:clientNow, ok:false}; }
+    function playChime(){
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if(!Ctx) return;
+      const ctx=new Ctx(); const notes=[440,554.37,659.25]; let t=ctx.currentTime;
+      for(let i=0;i<notes.length;i++){
+        const osc=ctx.createOscillator(), gain=ctx.createGain();
+        osc.type="sine"; osc.frequency.value=notes[i];
+        osc.connect(gain); gain.connect(ctx.destination);
+        gain.gain.setValueAtTime(0.001,t);
+        gain.gain.exponentialRampToValueAtTime(0.2,t+0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
+        osc.start(t); osc.stop(t+0.4); t+=0.18;
+      }
     }
-
-    async function syncNow(){
-      setStatus("جارٍ المزامنة…",""); const before=Date.now(); const {serverUnixMs, ok}=await getServerTime();
-      baseEpochMs=serverUnixMs; basePerfMs=performance.now(); const after=Date.now();
-      const deviceMid=before+(after-before)/2; lastDrift=serverUnixMs-deviceMid;
-      $("offset").textContent=tzOffsetStr; $("drift").textContent=(lastDrift>0?"+":"")+Math.round(lastDrift)+" مللي ثانية";
-      $("lastSync").textContent=new Date().toLocaleString("ar-SA",{hour12:false}); $("confidence").textContent=confidence;
-      setStatus(ok?"متصل بمصدر معياري ✓":"الاعتماد على ساعة جهازك", ok?"ok":"warn");
-      if(clockEl.textContent==="--:--:--") requestAnimationFrame(tick);
-      fetchAdhanTimes();
-    }
-
     chimeBtn.addEventListener("click",()=>{ chimeEnabled=!chimeEnabled; chimeBtn.textContent="جرس: "+(chimeEnabled?"تشغيل":"إيقاف"); });
 
+    // منع إطفاء الشاشة (مدعوم في بعض المتصفحات)
+    let wakeLock=null, wakeEnabled=false;
     async function requestWake(){
-      try{ if('wakeLock' in navigator){ wakeLock=await navigator.wakeLock.request('screen');
+      try{
+        if('wakeLock' in navigator){
+          wakeLock=await navigator.wakeLock.request('screen');
           wakeLock.addEventListener('release',()=>{ wakeEnabled=false; wakeBtn.textContent="منع الإطفاء: إيقاف"; });
           wakeEnabled=true; wakeBtn.textContent="منع الإطفاء: تشغيل";
-        } else { alert("ميزة منع الإطفاء غير مدعومة على هذا المتصفح."); } }
-      catch(e){ alert("تعذر تفعيل منع الإطفاء. جرّب Chrome أو Safari."); } }
+        } else { alert("ميزة منع الإطفاء غير مدعومة على هذا المتصفح."); }
+      }catch(e){ alert("تعذر تفعيل منع الإطفاء. جرّب Chrome أو Safari."); }
+    }
     function releaseWake(){ if(wakeLock){ wakeLock.release(); wakeLock=null; } wakeEnabled=false; wakeBtn.textContent="منع الإطفاء: إيقاف"; }
     wakeBtn.addEventListener("click",()=>{ wakeEnabled ? releaseWake() : requestWake(); });
     document.addEventListener('visibilitychange',()=>{ if(wakeEnabled && document.visibilityState==='visible') requestWake(); });
 
-    // Adhan countdown
-    const prayersOrder=["Fajr","Dhuhr","Asr","Maghrib","Isha"]; let todayPrayers=null;
-    async function fetchAdhanTimes(){ try{
-        const url="https://api.aladhan.com/v1/timingsByCity?city=Taif&country=SA&method=4";
-        const res=await fetchWithTimeout(url,{},7000); const js=await res.json(); const t=js?.data?.timings||{};
-        todayPrayers={Fajr:t.Fajr, Dhuhr:t.Dhuhr, Asr:t.Asr, Maghrib:t.Maghrib, Isha:t.Isha};
-      } catch(e){ todayPrayers=null; } }
-    const nextNameEl=$("nextName"), nextTimeEl=$("nextTime"), countdownEl=$("countdown");
-    const parseHM=s=>{ if(!s) return null; const [hh,mm]=s.split(":").map(x=>parseInt(x,10)); return {hh,mm}; };
-    function nextAdhanFrom(d){ if(!todayPrayers) return null; for(const name of prayersOrder){ const hm=parseHM(todayPrayers[name]); if(!hm) continue; const dt=new Date(d); dt.setHours(hm.hh, hm.mm, 0, 0); if(dt>d) return {name, at:dt}; } return null; }
-    async function updateCountdown(nowDate){ if(!todayPrayers){ nextNameEl.textContent="—"; nextTimeEl.textContent="—"; countdownEl.textContent="—:—:—"; return; }
-      let nxt=nextAdhanFrom(nowDate); if(!nxt){ await fetchAdhanTimes(); nxt=nextAdhanFrom(nowDate); if(!nxt) return; }
-      nextNameEl.textContent=localizePrayerName(nxt.name); nextTimeEl.textContent=`${fmt2(nxt.at.getHours())}:${fmt2(nxt.at.getMinutes())}`;
-      const diffMs=nxt.at-nowDate; const totalSec=Math.max(0, Math.floor(diffMs/1000)); const hh=Math.floor(totalSec/3600); const mm=Math.floor((totalSec%3600)/60); const ss=totalSec%60;
-      countdownEl.textContent=`${fmt2(hh)}:${fmt2(mm)}:${fmt2(ss)}`; }
-    function localizePrayerName(n){ switch(n){ case "Fajr": return "الفجر"; case "Dhuhr": return "الظهر"; case "Asr": return "العصر"; case "Maghrib": return "المغرب"; case "Isha": return "العشاء"; default: return n; } }
+    // عدّاد التحديث الحي — يبدأ فورًا
+    function tick(){
+      const now = baseEpochMs + (performance.now() - basePerfMs);
+      const d   = new Date(now);
+      clockEl.textContent = formatClock(d);
+      formatDates(d);
+      try { updateCountdown(d); } catch {}
+      maybeChime(d);
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick); // يبدأ فورًا
 
-    // Start
-    syncNow(); setInterval(syncNow, 10*60*1000);
+    // مزامنة الوقت (اختيارية، مع حماية)
+    async function fetchWithTimeout(url, options={}, timeoutMs=6000){
+      const ctrl = new AbortController();
+      const id = setTimeout(()=>ctrl.abort(), timeoutMs);
+      try{
+        const res = await fetch(url, { ...options, signal: ctrl.signal, cache: "no-store" });
+        clearTimeout(id);
+        return res;
+      }catch(e){ clearTimeout(id); throw e; }
+    }
+    async function getServerTime(){
+      const t0=performance.now();
+      try{
+        const res = await fetchWithTimeout("https://worldtimeapi.org/api/timezone/Asia/Riyadh", {}, 6000);
+        if(!res.ok) throw new Error("HTTP "+res.status);
+        const t1=performance.now();
+        const data = await res.json();
+        const serverUnixMs = (data.unixtime*1000) + (t1 - t0)/2;
+        tzOffsetStr = data.utc_offset || "+03:00";
+        confidence  = "عالٍ (مصدر معياري)";
+        return { serverUnixMs, ok:true };
+      } catch(e){
+        confidence  = "متوسط (ساعة جهازك)";
+        return { serverUnixMs: Date.now(), ok:false };
+      }
+    }
+    async function syncNow(){
+      setStatus("جارٍ المزامنة…","");
+      const before=Date.now();
+      const { serverUnixMs, ok } = await getServerTime();
+      baseEpochMs = serverUnixMs;
+      basePerfMs  = performance.now();
+      const after = Date.now();
+      const deviceMid = before + (after-before)/2;
+      lastDrift = serverUnixMs - deviceMid;
+      offsetEl.textContent = tzOffsetStr;
+      driftEl.textContent  = (lastDrift>0?"+":"") + Math.round(lastDrift) + " مللي ثانية";
+      lastSyncEl.textContent= new Date().toLocaleString("ar-SA",{hour12:false});
+      confEl.textContent   = confidence;
+      setStatus(ok ? "متصل بمصدر معياري ✓" : "الاعتماد على ساعة جهازك", ok ? "ok" : "warn");
+      fetchAdhanTimes(); // غير حاجب
+    }
+    resyncBtn.addEventListener("click", syncNow);
+
+    // الأذان (اختياري — محمي من الأخطاء)
+    const prayersOrder=["Fajr","Dhuhr","Asr","Maghrib","Isha"];
+    let todayPrayers=null;
+
+    async function fetchAdhanTimes(){
+      try{
+        const url="https://api.aladhan.com/v1/timingsByCity?city=Taif&country=SA&method=4";
+        const res=await fetchWithTimeout(url, {}, 7000);
+        const js = await res.json();
+        const t  = js?.data?.timings || {};
+        todayPrayers = { Fajr:t.Fajr, Dhuhr:t.Dhuhr, Asr:t.Asr, Maghrib:t.Maghrib, Isha:t.Isha };
+      }catch(e){
+        todayPrayers = null;
+      }
+    }
+    function parseHM(s){ if(!s) return null; const [hh,mm]=s.split(":").map(x=>parseInt(x,10)); return {hh,mm}; }
+    function nextAdhanFrom(d){
+      if(!todayPrayers) return null;
+      for(const name of prayersOrder){
+        const hm = parseHM(todayPrayers[name]); if(!hm) continue;
+        const dt = new Date(d); dt.setHours(hm.hh, hm.mm, 0, 0);
+        if(dt>d) return { name, at: dt };
+      }
+      return null;
+    }
+    function localizePrayerName(n){
+      switch(n){ case "Fajr": return "الفجر"; case "Dhuhr": return "الظهر"; case "Asr": return "العصر"; case "Maghrib": return "المغرب"; case "Isha": return "العشاء"; default: return n; }
+    }
+    async function updateCountdown(nowDate){
+      if(!todayPrayers){ nextNameEl.textContent="—"; nextTimeEl.textContent="—"; countdownEl.textContent="—:—:—"; return; }
+      let nxt = nextAdhanFrom(nowDate);
+      if(!nxt){ await fetchAdhanTimes(); nxt = nextAdhanFrom(nowDate); if(!nxt){ nextNameEl.textContent="—"; nextTimeEl.textContent="—"; countdownEl.textContent="—:—:—"; return; } }
+      nextNameEl.textContent = localizePrayerName(nxt.name);
+      nextTimeEl.textContent = `${fmt2(nxt.at.getHours())}:${fmt2(nxt.at.getMinutes())}`;
+      const diffMs = Math.max(0, nxt.at - nowDate);
+      const totalSec = Math.floor(diffMs/1000);
+      const hh = Math.floor(totalSec/3600);
+      const mm = Math.floor((totalSec%3600)/60);
+      const ss = totalSec%60;
+      countdownEl.textContent = `${fmt2(hh)}:${fmt2(mm)}:${fmt2(ss)}`;
+    }
+
+    // ابدأ محاولة مزامنة أولية (الساعة تعمل أصلًا)
+    syncNow();
+    // إعادة محاولة المزامنة كل 10 دقائق (لا توقف الساعة)
+    setInterval(syncNow, 10*60*1000);
   </script>
 </body>
 </html>
