@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ساعة الطائف — نسخة Lite (سريعة)</title>
+  <meta name="theme-color" content="#0b0f17">
+  <style>
+    :root { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Tahoma, Arial; }
+    body { margin:0; min-height:100dvh; display:grid; place-items:center; background:#0b0f17; color:#e9edf2; }
+    .wrap { width:min(820px,96vw); padding:16px; }
+    .card { background:#121827; border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:16px; box-shadow:0 16px 40px rgba(0,0,0,.4); }
+    h1 { margin:0 0 8px; font-size:clamp(18px,3.6vw,28px); }
+    .time { text-align:center; font-variant-numeric:tabular-nums; font-weight:900; font-size:clamp(42px,15vw,92px); letter-spacing:.5px; margin:10px 0; }
+    .dates { display:grid; gap:6px; margin:6px 0 10px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+    .btn { cursor:pointer; border:1px solid rgba(255,255,255,.2); background:#1a2336; color:#e9edf2; border-radius:12px; padding:10px 14px; font-weight:800; }
+    .btn:active { transform:translateY(1px); }
+    .badge { display:inline-flex; gap:8px; align-items:center; padding:8px 12px; border-radius:999px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); font-size:13px; }
+    .small { font-size:13px; opacity:.85; }
+    .err { color:#ff8a8a; } .ok { color:#7de39a; } .warn { color:#ffd26f; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="row">
+        <h1>ساعة الطائف — نسخة Lite</h1>
+        <div class="row">
+          <button class="btn" id="syncTime">مزامنة الوقت (اختياري)</button>
+          <button class="btn" id="syncAdhan">تحديث الأذان (اختياري)</button>
+        </div>
+      </div>
+
+      <div id="clock" class="time">--:--:--</div>
+      <div class="dates">
+        <div id="dateG"></div>
+        <div id="dateH"></div>
+      </div>
+
+      <div class="row">
+        <div class="badge">الحالة: <span id="status">بدون مزامنة (يعتمد على جهازك)</span></div>
+        <div class="badge">UTC +03:00 — Asia/Riyadh</div>
+      </div>
+
+      <div class="small" style="margin-top:10px">
+        الأذان القادم: <span id="nextName">—</span> عند <span id="nextTime">—</span> — العد التنازلي: <strong id="countdown">—:—:—</strong>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Lite clock: always works using device time (then optional sync)
+    const $ = id => document.getElementById(id);
+    const clockEl = $("clock"), dateGEl = $("dateG"), dateHEl = $("dateH");
+    const statusEl = $("status"), nextNameEl = $("nextName"), nextTimeEl = $("nextTime"), countdownEl = $("countdown");
+    const fmtG = new Intl.DateTimeFormat("ar-SA-u-ca-gregory", { weekday:"long", year:"numeric", month:"long", day:"numeric", timeZone:"Asia/Riyadh" });
+    const fmtH = new Intl.DateTimeFormat("ar-SA-u-ca-islamic", { weekday:"long", year:"numeric", month:"long", day:"numeric", timeZone:"Asia/Riyadh" });
+    let baseEpochMs = Date.now(); let basePerf = performance.now();
+    function fmt2(n){ return String(n).padStart(2,"0"); }
+    function tick(){
+      const now = baseEpochMs + (performance.now() - basePerf);
+      const d = new Date(now);
+      clockEl.textContent = fmt2(d.getHours()) + ":" + fmt2(d.getMinutes()) + ":" + fmt2(d.getSeconds());
+      // month numbers
+      const partsG = fmtG.formatToParts(d); const nameG = partsG.find(p=>p.type==="month")?.value || ""; const numG = d.getMonth()+1;
+      dateGEl.textContent = fmtG.format(d).replace(nameG, nameG + " (" + numG + ")");
+      const partsH = fmtH.formatToParts(d); const nameH = partsH.find(p=>p.type==="month")?.value || ""; const numH = parseInt(d.toLocaleString("en-u-ca-islamic",{month:"numeric", timeZone:"Asia/Riyadh"}));
+      dateHEl.textContent = fmtH.format(d).replace(nameH, nameH + " (" + numH + ")");
+      updateCountdown(d);
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    async function syncTime(){
+      statusEl.textContent = "جارٍ مزامنة الوقت…";
+      try{
+        const t0 = performance.now();
+        const r = await fetch("https://worldtimeapi.org/api/timezone/Asia/Riyadh", {cache:"no-store"});
+        const t1 = performance.now();
+        if(!r.ok) throw new Error("HTTP " + r.status);
+        const j = await r.json();
+        baseEpochMs = (j.unixtime*1000) + (t1 - t0)/2; basePerf = performance.now();
+        statusEl.textContent = "متصل بمصدر معياري ✓"; statusEl.className = "ok";
+      }catch(e){
+        statusEl.textContent = "تعذر المزامنة — تم الاعتماد على جهازك"; statusEl.className = "warn";
+      }
+    }
+    $("syncTime").addEventListener("click", syncTime);
+
+    // Adhan (optional)
+    const prayersOrder = ["Fajr","Dhuhr","Asr","Maghrib","Isha"]; let todayPrayers=null;
+    function parseHM(s){ if(!s) return null; const [hh,mm]=s.split(":").map(x=>parseInt(x,10)); return {hh,mm}; }
+    function nextAdhanFrom(d){
+      if(!todayPrayers) return null;
+      for(const n of prayersOrder){
+        const hm = parseHM(todayPrayers[n]); if(!hm) continue;
+        const dt = new Date(d); dt.setHours(hm.hh, hm.mm, 0, 0);
+        if(dt > d) return {name:n, at:dt};
+      }
+      return null;
+    }
+    function localize(n){ return n==="Fajr"?"الفجر":n==="Dhuhr"?"الظهر":n==="Asr"?"العصر":n==="Maghrib"?"المغرب":n==="Isha"?"العشاء":n; }
+    function updateCountdown(now){
+      if(!todayPrayers){ countdownEl.textContent="—:—:—"; return; }
+      let nxt = nextAdhanFrom(now); if(!nxt){ nextNameEl.textContent="—"; nextTimeEl.textContent="—"; countdownEl.textContent="—:—:—"; return; }
+      nextNameEl.textContent = localize(nxt.name);
+      nextTimeEl.textContent = fmt2(nxt.at.getHours()) + ":" + fmt2(nxt.at.getMinutes());
+      const diff = Math.max(0, Math.floor((nxt.at - now)/1000));
+      const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = diff%60;
+      countdownEl.textContent = fmt2(h)+":"+fmt2(m)+":"+fmt2(s);
+    }
+    async function syncAdhan(){
+      statusEl.textContent = "جارٍ تحديث الأذان…";
+      try{
+        const r = await fetch("https://api.aladhan.com/v1/timingsByCity?city=Taif&country=SA&method=4", {cache:"no-store"});
+        const j = await r.json();
+        const t = j?.data?.timings || {};
+        todayPrayers = { Fajr:t.Fajr, Dhuhr:t.Dhuhr, Asr:t.Asr, Maghrib:t.Maghrib, Isha:t.Isha };
+        statusEl.textContent = "تم تحديث الأذان ✓"; statusEl.className = "ok";
+      }catch(e){
+        statusEl.textContent = "تعذر تحديث الأذان — لا مشكلة، الساعة تعمل"; statusEl.className = "warn";
+      }
+    }
+    $("syncAdhan").addEventListener("click", syncAdhan);
+  </script>
+</body>
+</html>
